@@ -57,7 +57,8 @@ def header() -> None:
 
 
 def image_block(idx: int, total: int, name: str, result: dict,
-                preds: list, elapsed: float, alert_sent: bool, error: str = "") -> None:
+                preds: list, elapsed: float, alert_sent: bool,
+                alert_reason: str = "", error: str = "") -> None:
     print(f"{C.B}[{idx}/{total}]{C.R} {C.B}{name}{C.R}")
     if error:
         print(f"   └─ {C.RED}✖ ERROR{C.R}  {C.DIM}{error}{C.R}\n")
@@ -80,7 +81,10 @@ def image_block(idx: int, total: int, name: str, result: dict,
             print(f"      {C.GRY}Falta obligatorio:{C.R} {C.YEL}{', '.join(result['missing_required'])}{C.R}")
         if result["violations_detected"]:
             print(f"      {C.GRY}Sin protección   :{C.R} {C.RED}{', '.join(result['violations_detected'])}{C.R}")
-        tg = f"{C.GRN}🔔 enviada{C.R}" if alert_sent else f"{C.GRY}— no enviada{C.R}"
+        if alert_sent:
+            tg = f"{C.GRN}🔔 enviada{C.R}"
+        else:
+            tg = f"{C.YEL}⚠ no enviada{C.R}" + (f" {C.GRY}({alert_reason}){C.R}" if alert_reason else "")
         print(f"      {C.GRY}Telegram         :{C.R} {tg}")
     print()
 
@@ -153,6 +157,7 @@ def main(folder: str) -> None:
         (storage / f"batch_{p.stem}.jpg").write_bytes(annotated_bytes)
 
         alert_sent = False
+        alert_reason = ""
         if result["compliant"]:
             ok_count += 1
         else:
@@ -160,12 +165,13 @@ def main(folder: str) -> None:
                 infringido[c] += 1
             status = send_alert(build_alert_message(result, p.name), annotated_bytes, force=True)
             alert_sent = status.get("sent", False)
+            alert_reason = status.get("reason", "")
             if alert_sent:
                 alerts += 1
 
         database.save_detection(p.name, result, alert_sent, str(storage / f"batch_{p.stem}.jpg"))
         image_block(i, len(imgs), p.name, result, preds,
-                    time.perf_counter() - t_img, alert_sent)
+                    time.perf_counter() - t_img, alert_sent, alert_reason)
 
     summary(len(imgs), ok_count, errors, alerts, infringido, time.perf_counter() - t0)
     print(f"  {C.DIM}Imágenes anotadas guardadas en:{C.R} {storage}/")
