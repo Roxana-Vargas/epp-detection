@@ -108,6 +108,24 @@ body { background-image: radial-gradient(1200px 600px at 80% -10%, rgba(16,185,1
 .toast-box.err { background: #4c1d1d; color: #fecaca; border: 1px solid rgba(239,68,68,.4); }
 @keyframes slideIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 
+/* ===== Cámara en vivo ===== */
+.live-stage { position: relative; width: 100%; aspect-ratio: 16/9; background: #060a12; border-radius: .9rem; overflow: hidden; border: 1px solid rgba(255,255,255,.06); }
+.live-stage video { width: 100%; height: 100%; object-fit: contain; display: block; }
+.live-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.live-placeholder { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.status-pill.live-ok { background: rgba(16,185,129,.15); color: #6ee7b7; }
+.status-pill.live-bad { background: rgba(239,68,68,.15); color: #fca5a5; animation: pulse 1.2s infinite; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .55; } }
+
+.mini-stat { background: #0b1220; border: 1px solid rgba(255,255,255,.05); border-radius: .7rem; padding: .8rem; display: flex; flex-direction: column; align-items: center; }
+.mini-val { font-size: 1.6rem; font-weight: 800; color: #fff; line-height: 1; }
+.mini-lbl { font-size: .72rem; color: #94a3b8; margin-top: .3rem; }
+
+.toggle { appearance: none; width: 40px; height: 22px; border-radius: 999px; background: #1e2a43; position: relative; cursor: pointer; transition: background .2s; }
+.toggle:checked { background: #10b981; }
+.toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .2s; }
+.toggle:checked::after { transform: translateX(18px); }
+
 /* ===== Charts (altura fija: evita el crecimiento infinito de Chart.js) ===== */
 .chart-box { position: relative; width: 100%; height: 300px; }
 .chart-box canvas { position: absolute; inset: 0; }

@@ -43,6 +43,7 @@
     <nav class="flex-1 px-3 py-4 space-y-1" id="nav">
       <button data-view="dashboard" class="nav-item active"><i data-lucide="layout-dashboard"></i><span>Dashboard</span></button>
       <button data-view="inspect" class="nav-item"><i data-lucide="scan-search"></i><span>Inspección</span></button>
+      <button data-view="live" class="nav-item"><i data-lucide="video"></i><span>En vivo</span></button>
       <button data-view="history" class="nav-item"><i data-lucide="history"></i><span>Historial</span></button>
       <button data-view="config" class="nav-item"><i data-lucide="sliders-horizontal"></i><span>Configuración</span></button>
     </nav>
@@ -116,6 +117,59 @@
               <p>Sube una imagen para ver el análisis.</p>
             </div>
             <div id="result-body" class="hidden"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== En vivo ===== -->
+      <section data-panel="live" class="hidden">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="card lg:col-span-2">
+            <div class="card-head">
+              <h3>Monitoreo en vivo</h3>
+              <span id="live-verdict" class="status-pill">detenido</span>
+            </div>
+            <div class="live-stage">
+              <video id="live-video" autoplay muted playsinline></video>
+              <canvas id="live-overlay"></canvas>
+              <div id="live-placeholder" class="live-placeholder">
+                <i data-lucide="video-off" class="h-12 w-12 mb-3 opacity-40"></i>
+                <p class="text-slate-400">Inicia la cámara o sube un video para empezar</p>
+              </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-3 mt-4">
+              <button id="live-start" class="btn-primary"><i data-lucide="play" class="h-4 w-4"></i> Iniciar cámara</button>
+              <button id="live-stop" class="btn-ghost" disabled><i data-lucide="square" class="h-4 w-4"></i> Detener</button>
+              <label class="btn-ghost cursor-pointer"><i data-lucide="film" class="h-4 w-4"></i> Subir video
+                <input id="live-file" type="file" accept="video/*" class="hidden" />
+              </label>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h3>Sesión</h3></div>
+            <div class="grid grid-cols-2 gap-3 mb-5">
+              <div class="mini-stat"><span id="live-frames" class="mini-val">0</span><span class="mini-lbl">Frames</span></div>
+              <div class="mini-stat"><span id="live-viol" class="mini-val text-red-400">0</span><span class="mini-lbl">Violaciones</span></div>
+            </div>
+            <div class="space-y-4">
+              <div>
+                <label class="lbl flex justify-between"><span>Intervalo de análisis</span><span id="live-int-val" class="text-brand-400 font-semibold">1200 ms</span></label>
+                <input id="live-interval" type="range" min="400" max="3000" step="100" value="1200" class="rng" />
+              </div>
+              <label class="flex items-center justify-between cursor-pointer">
+                <span class="text-sm text-slate-300">Alertar por Telegram</span>
+                <input id="live-alert" type="checkbox" checked class="toggle" />
+              </label>
+              <label class="flex items-center justify-between cursor-pointer">
+                <span class="text-sm text-slate-300">Guardar incidencias</span>
+                <input id="live-save" type="checkbox" class="toggle" />
+              </label>
+            </div>
+            <div class="mt-5 pt-4 border-t border-white/5">
+              <p class="lbl">Detección actual</p>
+              <div id="live-detected" class="text-sm text-slate-400">—</div>
+            </div>
           </div>
         </div>
       </section>

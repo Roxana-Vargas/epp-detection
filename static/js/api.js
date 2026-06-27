@@ -27,4 +27,9 @@ const API = {
     fd.append('file', file);
     return this._json('/detect', { method: 'POST', body: fd });
   },
+  detectFrame(blob, { save, alert }) {
+    const fd = new FormData();
+    fd.append('file', blob, 'frame.jpg');
+    return this._json(`/detect/frame?save=${!!save}&alert=${!!alert}`, { method: 'POST', body: fd });
+  },
 };

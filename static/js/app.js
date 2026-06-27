@@ -2,6 +2,7 @@
 const PAGES = {
   dashboard: ['Dashboard', 'Resumen de cumplimiento de EPP'],
   inspect: ['Inspección', 'Analiza una foto y detecta el EPP'],
+  live: ['En vivo', 'Detección en tiempo real desde cámara o video'],
   history: ['Historial', 'Registro de todas las inspecciones'],
   config: ['Configuración', 'Ajusta el modelo, las reglas y las alertas'],
 };
@@ -33,6 +34,7 @@ function fmtDate(iso) {
 
 /* ---------- navegación ---------- */
 function go(view) {
+  if (view !== 'live') Live.stop(); // libera la cámara al salir
   $$('#nav .nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === view));
   $$('section[data-panel]').forEach(s => s.classList.toggle('hidden', s.dataset.panel !== view));
   $('#page-title').textContent = PAGES[view][0];
@@ -290,11 +292,143 @@ async function saveConfig() {
   } catch (e) { toast(e.message, 'err'); }
 }
 
+/* ---------- Cámara / video en vivo ---------- */
+const Live = (() => {
+  let stream = null, running = false, busy = false, frames = 0, viols = 0, objUrl = null;
+  const grab = document.createElement('canvas');
+
+  const el = {};
+  function cache() {
+    el.video = $('#live-video'); el.overlay = $('#live-overlay'); el.ph = $('#live-placeholder');
+    el.verdict = $('#live-verdict'); el.frames = $('#live-frames'); el.viol = $('#live-viol');
+    el.detected = $('#live-detected'); el.start = $('#live-start'); el.stop = $('#live-stop');
+    el.interval = $('#live-interval'); el.intVal = $('#live-int-val');
+    el.alert = $('#live-alert'); el.save = $('#live-save'); el.file = $('#live-file');
+  }
+
+  function setVerdict(text, cls) { el.verdict.className = 'status-pill ' + (cls || ''); el.verdict.textContent = text; }
+  function resetStats() { frames = 0; viols = 0; el.frames.textContent = '0'; el.viol.textContent = '0'; }
+
+  async function startCamera() {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 }, audio: false });
+      el.video.srcObject = stream;
+      begin();
+    } catch (e) {
+      toast('No se pudo acceder a la cámara: ' + e.message, 'err');
+    }
+  }
+
+  function startFile(file) {
+    stopStream();
+    objUrl = URL.createObjectURL(file);
+    el.video.srcObject = null;
+    el.video.src = objUrl;
+    el.video.loop = true;
+    el.video.play();
+    begin();
+  }
+
+  function begin() {
+    running = true; resetStats();
+    el.ph.style.display = 'none';
+    el.start.disabled = true; el.stop.disabled = false;
+    setVerdict('analizando…', 'live-ok');
+    el.video.onloadedmetadata = () => el.video.play();
+    requestAnimationFrame(tick);
+  }
+
+  function stopStream() {
+    if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+    if (objUrl) { URL.revokeObjectURL(objUrl); objUrl = null; }
+  }
+
+  function stop() {
+    if (!running && !stream) return;
+    running = false;
+    stopStream();
+    if (el.video) { el.video.pause(); el.video.srcObject = null; el.video.removeAttribute('src'); }
+    if (el.overlay) el.overlay.getContext('2d').clearRect(0, 0, el.overlay.width, el.overlay.height);
+    if (el.ph) el.ph.style.display = 'flex';
+    if (el.start) el.start.disabled = false;
+    if (el.stop) el.stop.disabled = true;
+    if (el.verdict) setVerdict('detenido', '');
+  }
+
+  async function tick() {
+    if (!running) return;
+    const v = el.video, interval = +el.interval.value;
+    if (!busy && v.readyState >= 2 && v.videoWidth) {
+      busy = true;
+      grab.width = v.videoWidth; grab.height = v.videoHeight;
+      grab.getContext('2d').drawImage(v, 0, 0, grab.width, grab.height);
+      grab.toBlob(async (blob) => {
+        try {
+          const d = await API.detectFrame(blob, { save: el.save.checked, alert: el.alert.checked });
+          if (running) render(d);
+        } catch (e) { /* frame perdido, seguimos */ }
+        finally { busy = false; }
+      }, 'image/jpeg', 0.7);
+    }
+    setTimeout(() => requestAnimationFrame(tick), interval);
+  }
+
+  function render(d) {
+    frames++; el.frames.textContent = frames;
+    const ok = d.compliant;
+    if (!ok) { viols++; el.viol.textContent = viols; }
+    setVerdict(ok ? '✅ CUMPLE' : '❌ NO CUMPLE', ok ? 'live-ok' : 'live-bad');
+    el.detected.innerHTML = (d.detected_classes && d.detected_classes.length)
+      ? d.detected_classes.map(c => `<span class="chip ${c.startsWith('no-') ? 'bad' : 'ok'}">${c}</span>`).join('')
+      : '<span class="chip">nada</span>';
+    drawBoxes(d.predictions || [], d.image || {});
+  }
+
+  function drawBoxes(preds, img) {
+    const v = el.video, c = el.overlay;
+    const rect = v.getBoundingClientRect();
+    c.width = rect.width; c.height = rect.height;
+    const ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, c.width, c.height);
+    if (!img.width || !img.height) return;
+    // mapeo respetando object-fit: contain (puede haber bandas negras)
+    const scale = Math.min(c.width / img.width, c.height / img.height);
+    const offX = (c.width - img.width * scale) / 2;
+    const offY = (c.height - img.height * scale) / 2;
+    ctx.font = '600 13px Inter, sans-serif';
+    preds.forEach(p => {
+      const neg = p.class.toLowerCase().startsWith('no-');
+      const color = neg ? '#ef4444' : '#10b981';
+      const w = p.width * scale, h = p.height * scale;
+      const x = offX + (p.x - p.width / 2) * scale, y = offY + (p.y - p.height / 2) * scale;
+      ctx.lineWidth = 2.5; ctx.strokeStyle = color;
+      ctx.strokeRect(x, y, w, h);
+      const label = `${p.class} ${Math.round(p.confidence * 100)}%`;
+      const tw = ctx.measureText(label).width;
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y - 18, tw + 10, 18);
+      ctx.fillStyle = '#04140d';
+      ctx.fillText(label, x + 5, y - 5);
+    });
+  }
+
+  function setup() {
+    cache();
+    el.interval.oninput = () => el.intVal.textContent = el.interval.value + ' ms';
+    el.start.onclick = startCamera;
+    el.stop.onclick = stop;
+    el.file.onchange = () => el.file.files[0] && startFile(el.file.files[0]);
+  }
+
+  return { setup, stop };
+})();
+
 /* ---------- init ---------- */
 function init() {
   $$('#nav .nav-item').forEach(b => b.addEventListener('click', () => go(b.dataset.view)));
   $('#btn-refresh').addEventListener('click', () => { loadHealth(); go($$('#nav .nav-item.active')[0].dataset.view); });
   setupInspect();
+  Live.setup();
   $('#btn-save-config').addEventListener('click', saveConfig);
   $('#btn-test-telegram').addEventListener('click', async () => {
     try { const r = await API.testTelegram(); toast(r.sent ? 'Mensaje de prueba enviado ✓' : (r.reason || 'No enviado'), r.sent ? 'ok' : 'err'); }

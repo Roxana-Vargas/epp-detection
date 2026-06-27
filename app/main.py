@@ -1,4 +1,5 @@
 """API REST de detección de EPP con alertas por Telegram y panel web."""
+import time
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -89,6 +90,70 @@ async def detect_endpoint(file: UploadFile = File(...)) -> JSONResponse:
             "predictions": predictions,
             "alerta_telegram": alert_status,
             "imagen_anotada": f"/annotated/{rec_id}",
+        }
+    )
+
+
+_last_live_save = 0.0
+
+
+def _can_save_live() -> bool:
+    """Throttle de guardado en modo cámara: 1 incidencia por cooldown (evita inundar el historial)."""
+    global _last_live_save
+    now = time.time()
+    if now - _last_live_save >= settings.ALERT_COOLDOWN_SECONDS:
+        _last_live_save = now
+        return True
+    return False
+
+
+@app.post("/detect/frame", tags=["deteccion"])
+async def detect_frame(
+    file: UploadFile = File(...), save: bool = False, alert: bool = True
+) -> JSONResponse:
+    """Versión ligera para cámara/video en vivo: detecta y devuelve cajas para
+    dibujarlas en el navegador. No guarda cada frame; solo registra una incidencia
+    por 'cooldown' y las alertas de Telegram también respetan el cooldown."""
+    if not (file.content_type or "").startswith("image/"):
+        raise HTTPException(400, "El frame debe ser una imagen.")
+    image_bytes = await file.read()
+    if not image_bytes:
+        raise HTTPException(400, "Frame vacío.")
+
+    try:
+        raw = detect(image_bytes)
+    except DetectorError as exc:
+        raise HTTPException(502, str(exc)) from exc
+
+    predictions = raw.get("predictions", [])
+    result = evaluate(predictions)
+
+    alert_status = {"sent": False, "reason": "cumple" if result["compliant"] else "—"}
+    saved_id = None
+    if not result["compliant"]:
+        annotated_bytes = None
+        if alert:
+            annotated_bytes = annotate(image_bytes, predictions)
+            alert_status = send_alert(
+                build_alert_message(result, "cámara en vivo"), annotated_bytes
+            )
+        if save and _can_save_live():
+            if annotated_bytes is None:
+                annotated_bytes = annotate(image_bytes, predictions)
+            rec_uuid = uuid.uuid4().hex[:12]
+            path = _STORAGE / f"{rec_uuid}.jpg"
+            path.write_bytes(annotated_bytes)
+            saved_id = database.save_detection(
+                "cámara en vivo", result, alert_status.get("sent", False), str(path)
+            )
+
+    return JSONResponse(
+        {
+            **result,
+            "predictions": predictions,
+            "image": raw.get("image", {}),
+            "alerta_telegram": alert_status,
+            "saved_id": saved_id,
         }
     )
 

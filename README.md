@@ -26,6 +26,8 @@ Foto → API (FastAPI) → Modelo Roboflow (REST) → Reglas EPP → ¿Falta EPP
 - **Historial en SQLite** y endpoint `/stats` (% de cumplimiento).
 - **Interfaz web** para subir fotos (`/`).
 - **Procesamiento por lotes** de una carpeta (`batch.py`).
+- **Detección en vivo** desde webcam o archivo de video, con cajas dibujadas en
+  tiempo real sobre el video (sección "En vivo" del panel).
 - **Dockerfile** y **tests**.
 
 ## Requisitos previos
@@ -92,6 +94,7 @@ pytest
 | Método | Ruta | Descripción |
 |--------|------|-------------|
 | POST | `/detect` | Sube foto, detecta EPP, alerta si falta |
+| POST | `/detect/frame` | Frame de cámara/video en vivo (ligero, throttle de guardado) |
 | GET | `/annotated/{id}` | Imagen anotada de una inspección |
 | GET | `/history?limit=N` | Historial de inspecciones |
 | GET | `/stats` | Métricas de cumplimiento |
