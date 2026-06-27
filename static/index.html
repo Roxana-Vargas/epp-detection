@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EPP Guard · Panel de Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+          colors: {
+            ink: { 950: '#070b14', 900: '#0b1220', 850: '#0f1729', 800: '#151f33', 700: '#1e2a43', 600: '#2b3a5a' },
+            brand: { 400: '#34d399', 500: '#10b981', 600: '#059669' },
+          },
+          boxShadow: { glow: '0 0 0 1px rgba(16,185,129,.25), 0 8px 30px -8px rgba(16,185,129,.35)' },
+        },
+      },
+    };
+  </script>
+  <link rel="stylesheet" href="/static/css/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="bg-ink-950 text-slate-200 font-sans antialiased">
+
+  <!-- ===================== Sidebar ===================== -->
+  <aside class="fixed inset-y-0 left-0 z-30 w-64 bg-ink-900/90 backdrop-blur border-r border-white/5 flex flex-col">
+    <div class="px-6 py-6 flex items-center gap-3 border-b border-white/5">
+      <div class="h-10 w-10 rounded-xl bg-gradient-to-br from-brand-400 to-brand-600 grid place-items-center shadow-glow">
+        <i data-lucide="hard-hat" class="h-5 w-5 text-ink-950"></i>
+      </div>
+      <div>
+        <h1 class="text-base font-extrabold tracking-tight text-white leading-none">EPP Guard</h1>
+        <p class="text-[11px] text-slate-400 mt-0.5">Detección inteligente</p>
+      </div>
+    </div>
+
+    <nav class="flex-1 px-3 py-4 space-y-1" id="nav">
+      <button data-view="dashboard" class="nav-item active"><i data-lucide="layout-dashboard"></i><span>Dashboard</span></button>
+      <button data-view="inspect" class="nav-item"><i data-lucide="scan-search"></i><span>Inspección</span></button>
+      <button data-view="history" class="nav-item"><i data-lucide="history"></i><span>Historial</span></button>
+      <button data-view="config" class="nav-item"><i data-lucide="sliders-horizontal"></i><span>Configuración</span></button>
+    </nav>
+
+    <div class="px-4 py-4 border-t border-white/5 space-y-2 text-xs">
+      <div class="flex items-center justify-between">
+        <span class="text-slate-400">Roboflow</span>
+        <span id="pill-roboflow" class="status-pill">—</span>
+      </div>
+      <div class="flex items-center justify-between">
+        <span class="text-slate-400">Telegram</span>
+        <span id="pill-telegram" class="status-pill">—</span>
+      </div>
+      <a href="/docs" target="_blank" class="mt-2 flex items-center gap-2 text-slate-400 hover:text-brand-400 transition">
+        <i data-lucide="book-open" class="h-3.5 w-3.5"></i> Documentación API
+      </a>
+    </div>
+  </aside>
+
+  <!-- ===================== Main ===================== -->
+  <div class="ml-64 min-h-screen flex flex-col">
+    <header class="sticky top-0 z-20 bg-ink-950/70 backdrop-blur border-b border-white/5 px-8 py-4 flex items-center justify-between">
+      <div>
+        <h2 id="page-title" class="text-xl font-bold text-white">Dashboard</h2>
+        <p id="page-sub" class="text-sm text-slate-400">Resumen de cumplimiento de EPP</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <button id="btn-refresh" class="btn-ghost"><i data-lucide="refresh-cw" class="h-4 w-4"></i> Actualizar</button>
+        <span id="model-badge" class="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-ink-800 border border-white/5 text-xs text-slate-300"></span>
+      </div>
+    </header>
+
+    <main class="flex-1 p-8">
+
+      <!-- ===== Dashboard ===== -->
+      <section data-panel="dashboard">
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6" id="kpis"></div>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="card lg:col-span-2">
+            <div class="card-head"><h3>Tendencia de cumplimiento</h3><span class="text-xs text-slate-400">últimos 14 días</span></div>
+            <div class="chart-box"><canvas id="chart-trend"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h3>EPP más infringido</h3></div>
+            <div class="chart-box"><canvas id="chart-class"></canvas></div>
+            <p id="class-empty" class="hidden text-center text-sm text-slate-500 py-10">Sin datos todavía.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Inspección ===== -->
+      <section data-panel="inspect" class="hidden">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="card">
+            <div class="card-head"><h3>Analizar una foto</h3></div>
+            <label id="dropzone" class="dropzone">
+              <input type="file" id="file-input" accept="image/*" class="hidden" />
+              <i data-lucide="image-up" class="h-10 w-10 text-slate-500 mb-3"></i>
+              <p class="font-medium text-slate-300">Arrastra una imagen o haz clic</p>
+              <p class="text-xs text-slate-500 mt-1">JPG, PNG, WEBP</p>
+            </label>
+            <div id="preview-wrap" class="hidden mt-4">
+              <img id="preview" class="rounded-xl w-full object-cover max-h-72 border border-white/5" />
+              <button id="btn-analyze" class="btn-primary w-full mt-4"><i data-lucide="scan-search" class="h-4 w-4"></i> Analizar EPP</button>
+            </div>
+          </div>
+          <div class="card" id="result-card">
+            <div class="card-head"><h3>Resultado</h3></div>
+            <div id="result-empty" class="text-center text-slate-500 py-16">
+              <i data-lucide="shield-question" class="h-10 w-10 mx-auto mb-2 opacity-50"></i>
+              <p>Sube una imagen para ver el análisis.</p>
+            </div>
+            <div id="result-body" class="hidden"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Historial ===== -->
+      <section data-panel="history" class="hidden">
+        <div class="card">
+          <div class="card-head">
+            <h3>Inspecciones recientes</h3>
+            <button id="btn-clear-history" class="btn-danger-ghost text-xs"><i data-lucide="trash-2" class="h-3.5 w-3.5"></i> Limpiar</button>
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm" id="history-table">
+              <thead>
+                <tr class="text-left text-slate-400 border-b border-white/5">
+                  <th class="py-2 pr-4 font-medium">Imagen</th>
+                  <th class="py-2 pr-4 font-medium">Archivo</th>
+                  <th class="py-2 pr-4 font-medium">Estado</th>
+                  <th class="py-2 pr-4 font-medium">Falta</th>
+                  <th class="py-2 pr-4 font-medium">Sin EPP</th>
+                  <th class="py-2 pr-4 font-medium">Alerta</th>
+                  <th class="py-2 pr-4 font-medium">Fecha</th>
+                </tr>
+              </thead>
+              <tbody id="history-body"></tbody>
+            </table>
+          </div>
+          <p id="history-empty" class="hidden text-center text-slate-500 py-12">No hay inspecciones aún.</p>
+        </div>
+      </section>
+
+      <!-- ===== Configuración ===== -->
+      <section data-panel="config" class="hidden">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+          <div class="card">
+            <div class="card-head"><h3><i data-lucide="cpu" class="inline h-4 w-4 mr-1"></i> Modelo e inferencia</h3></div>
+            <div class="space-y-5">
+              <div>
+                <label class="lbl">ID del modelo (Roboflow)</label>
+                <input id="cfg-model" class="inp" placeholder="construction-site-safety/27" />
+              </div>
+              <div>
+                <label class="lbl flex justify-between"><span>Umbral de confianza</span><span id="cfg-conf-val" class="text-brand-400 font-semibold"></span></label>
+                <input id="cfg-conf" type="range" min="0" max="100" class="rng" />
+                <p class="hint">Más alto = menos falsos positivos, pero puede perder detecciones.</p>
+              </div>
+              <div>
+                <label class="lbl flex justify-between"><span>Solapamiento (overlap)</span><span id="cfg-overlap-val" class="text-brand-400 font-semibold"></span></label>
+                <input id="cfg-overlap" type="range" min="0" max="100" class="rng" />
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h3><i data-lucide="list-checks" class="inline h-4 w-4 mr-1"></i> Reglas de EPP</h3></div>
+            <div class="space-y-5">
+              <div>
+                <label class="lbl">EPP obligatorio <span class="text-slate-500">(debe estar presente)</span></label>
+                <div class="tagbox" data-tags="required"></div>
+              </div>
+              <div>
+                <label class="lbl">Clases de EPP válidas</label>
+                <div class="tagbox" data-tags="ppe"></div>
+              </div>
+              <div>
+                <label class="lbl">Clases de violación <span class="text-slate-500">(ausencia explícita)</span></label>
+                <div class="tagbox" data-tags="violation"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card lg:col-span-2">
+            <div class="card-head"><h3><i data-lucide="send" class="inline h-4 w-4 mr-1"></i> Alertas Telegram</h3></div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div>
+                <label class="lbl">Bot Token</label>
+                <input id="cfg-token" type="password" class="inp" placeholder="••••••••" />
+                <p id="token-state" class="hint"></p>
+              </div>
+              <div>
+                <label class="lbl">Chat ID</label>
+                <input id="cfg-chat" class="inp" placeholder="123456789" />
+              </div>
+              <div>
+                <label class="lbl flex justify-between"><span>Cooldown (s)</span><span id="cfg-cooldown-val" class="text-brand-400 font-semibold"></span></label>
+                <input id="cfg-cooldown" type="range" min="0" max="300" class="rng" />
+                <p class="hint">Tiempo mínimo entre alertas (anti-spam).</p>
+              </div>
+            </div>
+            <div class="mt-4">
+              <button id="btn-test-telegram" class="btn-ghost"><i data-lucide="bell-ring" class="h-4 w-4"></i> Enviar mensaje de prueba</button>
+            </div>
+          </div>
+
+          <div class="lg:col-span-2 flex justify-end gap-3">
+            <button id="btn-save-config" class="btn-primary"><i data-lucide="save" class="h-4 w-4"></i> Guardar configuración</button>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="fixed bottom-6 right-6 z-50 hidden"></div>
+
+  <script src="/static/js/api.js"></script>
+  <script src="/static/js/charts.js"></script>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

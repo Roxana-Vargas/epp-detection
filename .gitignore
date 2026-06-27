@@ -1,0 +1,11 @@
+.env
+config.json
+server.log
+__pycache__/
+*.pyc
+epp.db
+storage/
+.venv/
+venv/
+.pytest_cache/
+.playwright-mcp/
