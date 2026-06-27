@@ -3,6 +3,12 @@ un reporte detallado en consola.
 
 Uso:
     python batch.py ./imagenes
+    python batch.py ./imagenes --required "hardhat,safety vest"
+    python batch.py ./imagenes --required "hardhat,safety vest" --confidence 45
+
+Con --required defines qué EPP es obligatorio SOLO para esta corrida (no toca
+la configuración global). Si no se da --violations, se derivan las clases
+negativas "no-<epp>" automáticamente.
 """
 import os
 import sys
@@ -121,8 +127,26 @@ def summary(total: int, ok: int, errors: int, alerts: int,
     print()
 
 
-def main(folder: str) -> None:
+def _csv(text: str) -> list[str]:
+    return [x.strip().lower() for x in text.split(",") if x.strip()]
+
+
+def main(folder: str, required: str | None = None,
+         violations: str | None = None, confidence: float | None = None) -> None:
     database.init_db()
+
+    # Overrides solo para esta corrida (no modifican la config global).
+    if required is not None:
+        settings.REQUIRED_PPE = _csv(required)
+    if violations is not None:
+        settings.VIOLATION_CLASSES = _csv(violations)
+    elif required is not None:
+        # Si solo te importan ciertos EPP obligatorios, deriva sus clases
+        # "negativas" (no-<epp>) para que el modelo también pueda marcarlas.
+        settings.VIOLATION_CLASSES = [f"no-{x}" for x in settings.REQUIRED_PPE]
+    if confidence is not None:
+        settings.CONFIDENCE_THRESHOLD = confidence
+
     storage = Path(settings.STORAGE_DIR)
     folder_path = Path(folder)
     if not folder_path.is_dir():
@@ -179,7 +203,22 @@ def main(folder: str) -> None:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print(__doc__)
-        sys.exit(1)
-    main(sys.argv[1])
+    import argparse
+
+    ap = argparse.ArgumentParser(
+        description="Analiza por lotes las imágenes de una carpeta y reporta el EPP.",
+        epilog='Ejemplo: python batch.py ./imagenes '
+               '--required "hardhat,safety vest"',
+    )
+    ap.add_argument("folder", help="Carpeta con las imágenes a analizar")
+    ap.add_argument("--required", metavar="EPP",
+                    help='EPP obligatorio, separado por comas. '
+                         'Ej: "hardhat,safety vest". Solo se marca violación si falta alguno.')
+    ap.add_argument("--violations", metavar="CLASES",
+                    help='Clases de violación a considerar, separadas por comas. '
+                         'Ej: "no-hardhat,no-safety vest". '
+                         'Si se omite, se derivan de --required.')
+    ap.add_argument("--confidence", type=float, metavar="0-100",
+                    help="Umbral de confianza de la inferencia (sobrescribe la config).")
+    args = ap.parse_args()
+    main(args.folder, args.required, args.violations, args.confidence)

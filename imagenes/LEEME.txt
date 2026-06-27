@@ -1,1 +1,0 @@
-Pon aqui tus fotos (.jpg, .png) para analizarlas con: python batch.py ./imagenes
